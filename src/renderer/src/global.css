@@ -1,0 +1,5 @@
+/* Remove a margem do body */
+body {
+  margin: 0 !important;  /* Adicionando !important para garantir que substitua outros estilos */
+  padding: 0; /* Certifique-se de que não há padding */
+}

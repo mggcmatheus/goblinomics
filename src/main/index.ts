@@ -2,23 +2,27 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import StockRepository from './infra/repositories/stockRepository'
-import StockPriceRepository from './infra/repositories/stockPriceRepository'
-import PortfolioRepository from './infra/repositories/portfolioRepository'
-import PortfolioAssetRepository from './infra/repositories/portfolioAssetRepository'
+import TickerRepository from './infra/repositories/TickerRepository'
+import { FetchTickersAndUpdate } from './usecases/fetchTickersAndUpdate'
+import dotenv from 'dotenv'
+
+dotenv.config()
 
 function createWindow(): void {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+    width: 1030,
+    height: 685,
+    minWidth: 1030,
+    minHeight: 685,
     show: false,
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      sandbox: false
     }
   })
 
@@ -31,8 +35,6 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -40,57 +42,29 @@ function createWindow(): void {
   }
 }
 
-const stockRepo = new StockRepository()
-const stockPriceRepo = new StockPriceRepository()
-const portfolioRepo = new PortfolioRepository()
-const portfolioAssetRepo = new PortfolioAssetRepository()
-
+const tickerRepo = new TickerRepository()
 // 🔹 STOCKS
-ipcMain.handle('stock:create', async (_event, stock) => stockRepo.create(stock))
-ipcMain.handle('stock:read', async (_event, stockId) => stockRepo.read(stockId))
-ipcMain.handle('stock:update', async (_event, stockId, stock) => stockRepo.update(stockId, stock))
-ipcMain.handle('stock:delete', async (_event, stockId) => stockRepo.delete(stockId))
+ipcMain.handle('ticker:add', async (_event, ticker) => tickerRepo.add(ticker))
+ipcMain.handle('ticker:get-all', async () => tickerRepo.getAll())
+ipcMain.handle('ticker:get-by-id', async (_event, id) => tickerRepo.getById(id))
+ipcMain.handle('ticker:get-by-stock', async (_event, stock) => tickerRepo.getByStock(stock))
+ipcMain.handle('ticker:update', async (_event, id, ticker) => tickerRepo.update(id, ticker))
+ipcMain.handle('ticker:delete', async (_event, id) => tickerRepo.delete(id))
 
-// 🔹 STOCK PRICES
-ipcMain.handle('stockPrice:create', async (_event, stockPrice) => stockPriceRepo.create(stockPrice))
-ipcMain.handle('stockPrice:read', async (_event, priceId) => stockPriceRepo.read(priceId))
-ipcMain.handle('stockPrice:update', async (_event, priceId, stockPrice) =>
-  stockPriceRepo.update(priceId, stockPrice)
-)
-ipcMain.handle('stockPrice:delete', async (_event, priceId) => stockPriceRepo.delete(priceId))
+// Função para executar o caso de uso
+async function fetchAndUpdateTickers(): Promise<void> {
+  console.log('🔄 Atualizando tickers...')
+  try {
+    const useCase = new FetchTickersAndUpdate()
+    await useCase.execute()
+    console.log('✅ Atualização concluída com sucesso.')
+  } catch (error) {
+    console.error('❌ Erro ao atualizar tickers:', error)
+  }
+}
 
-// 🔹 PORTFOLIOS
-ipcMain.handle('portfolio:create', async (_event, portfolio) => portfolioRepo.create(portfolio))
-ipcMain.handle('portfolio:read', async (_event, portfolioId) => portfolioRepo.read(portfolioId))
-ipcMain.handle('portfolio:update', async (_event, portfolioId, portfolio) =>
-  portfolioRepo.update(portfolioId, portfolio)
-)
-ipcMain.handle('portfolio:delete', async (_event, portfolioId) => portfolioRepo.delete(portfolioId))
-
-// 🔹 PORTFOLIO ASSETS
-ipcMain.handle('portfolioAsset:create', async (_event, portfolioAsset) =>
-  portfolioAssetRepo.create(portfolioAsset)
-)
-ipcMain.handle('portfolioAsset:read', async (_event, portfolioAssetId) =>
-  portfolioAssetRepo.read(portfolioAssetId)
-)
-ipcMain.handle('portfolioAsset:update', async (_event, portfolioAssetId, portfolioAsset) =>
-  portfolioAssetRepo.update(portfolioAssetId, portfolioAsset)
-)
-ipcMain.handle('portfolioAsset:delete', async (_event, portfolioAssetId) =>
-  portfolioAssetRepo.delete(portfolioAssetId)
-)
-
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
-
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
@@ -98,17 +72,19 @@ app.whenReady().then(() => {
   createWindow()
 
   app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
-})
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
-  }
+  // 🔹 Executa imediatamente ao iniciar
+  fetchAndUpdateTickers()
+
+  // 🔹 Agendar a cada 24 horas (86.400.000 ms)
+  const tickerUpdateInterval = setInterval(fetchAndUpdateTickers, 24 * 60 * 60 * 1000)
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      clearInterval(tickerUpdateInterval) // Limpar o intervalo quando o app for fechado
+      app.quit()
+    }
+  })
 })
