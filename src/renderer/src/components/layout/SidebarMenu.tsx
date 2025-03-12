@@ -4,7 +4,7 @@ import { FC, useRef, useState } from 'react'
 type SidebarMenuItemProps = {
   title: string
   icon: string
-  items?: { icon: string; label: string }[]
+  items?: { icon: string; label: string; path: string }[]
 }
 
 export const SidebarMenu: FC = () => {
@@ -16,9 +16,7 @@ export const SidebarMenu: FC = () => {
           title="Cadastros"
           icon="pi pi-chevron-down"
           items={[
-            { icon: 'pi pi-folder', label: 'Ações' },
-            { icon: 'pi pi-folder', label: 'Fundos' },
-            { icon: 'pi pi-folder', label: 'BDRs' }
+            { icon: 'pi pi-folder', label: 'Ações, Fundos e BDRs', path: '/registration/stocks' }
           ]}
         />
       </ul>
@@ -26,7 +24,12 @@ export const SidebarMenu: FC = () => {
   )
 }
 
-export const SidebarMenuItem: FC<SidebarMenuItemProps> = ({ title, icon, items }) => {
+export const SidebarMenuItem: FC<SidebarMenuItemProps & { path?: string }> = ({
+  title,
+  icon,
+  items,
+  path
+}) => {
   const [isOpen, setIsOpen] = useState(false)
   const contentRef = useRef<HTMLUListElement>(null)
 
@@ -37,14 +40,14 @@ export const SidebarMenuItem: FC<SidebarMenuItemProps> = ({ title, icon, items }
   if (!items || items.length === 0) {
     return (
       <li>
-        <a
+        <div
           className="p-ripple p-3 flex align-items-center text-gray-300 cursor-pointer hover:bg-bluegray-700 transition-duration-150 transition-colors"
           style={{ borderRadius: '30px' }}
         >
           <i className={`${icon} mr-2`}></i>
           <span className="font-medium">{title}</span>
           <Ripple />
-        </a>
+        </div>
       </li>
     )
   }
@@ -76,19 +79,20 @@ export const SidebarMenuItem: FC<SidebarMenuItemProps> = ({ title, icon, items }
 type SidebarSubMenuItemProps = {
   icon: string
   label: string
+  path: string
 }
 
-export const SidebarSubMenuItem: FC<SidebarSubMenuItemProps> = ({ icon, label }) => {
+export const SidebarSubMenuItem: FC<SidebarSubMenuItemProps> = ({ icon, label, path }) => {
   return (
     <li>
-      <a
+      <div
         className="p-ripple flex align-items-center cursor-pointer p-3 text-gray-300 hover:bg-bluegray-700 transition-duration-150 transition-colors"
         style={{ borderRadius: '30px' }}
       >
         <i className={`${icon} mr-2`}></i>
         <span className="font-medium">{label}</span>
         <Ripple />
-      </a>
+      </div>
     </li>
   )
 }
