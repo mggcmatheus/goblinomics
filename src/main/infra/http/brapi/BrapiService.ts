@@ -1,4 +1,5 @@
 import axios from 'axios'
+import * as https from 'node:https'
 
 export interface QuoteListResponse {
   indexes: {
@@ -20,12 +21,17 @@ export interface QuoteListResponse {
   availableStockTypes: string[]
 }
 
+const httpsAgent = new https.Agent({
+  rejectUnauthorized: false
+})
+
 export class BrapiService {
   async quoteList(): Promise<QuoteListResponse> {
     try {
       const response = await axios.get<QuoteListResponse>(
         `${process.env.BRAPI_API_BASE_URL}/quote/list/`,
         {
+          httpsAgent: httpsAgent,
           headers: {
             Authorization: `Bearer ${process.env.BRAPI_API_TOKEN_ID}`
           }
